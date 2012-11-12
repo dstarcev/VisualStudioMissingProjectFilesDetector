@@ -52,7 +52,7 @@ namespace VisualStudioMissingProjectFilesDetector {
 
 		private static ISet<string> GetIncludedFiles(string projectFile) {
 			var fileContent = ReadFile(projectFile);
-			var projectDirectory = Path.GetDirectoryName(projectFile);//Include="Scripts\Post-Deployment\Data\Script.Workle.Companies.UpdateType.sql"
+			var projectDirectory = Path.GetDirectoryName(projectFile);
 			var includePattern = new Regex("Include=\"(.*?)\"", RegexOptions.Compiled);
 
 			var filePaths = includePattern.Matches(fileContent)
