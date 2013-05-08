@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Web;
 
 namespace VisualStudioMissingProjectFilesDetector {
 	internal class Program {
@@ -16,15 +17,24 @@ namespace VisualStudioMissingProjectFilesDetector {
 
 			var includedFiles = GetIncludedFiles(projectFile);
 			var existingFiles = GetExistingFiles(projectFile);
-			var filesMustBeIncluded = FilterFiles(existingFiles, filePattern);
-
-			var missingFiles = GetMissingFiles(filesMustBeIncluded, includedFiles).ToList();
-			if (missingFiles.Any()) {
+			
+			var notIncludedFiles = GetMissingFiles(FilterFiles(existingFiles, filePattern), includedFiles).ToList();
+			if (notIncludedFiles.Any()) {
 				Console.WriteLine("Not included files found!");
-				foreach (var missingFile in missingFiles) {
+				foreach (var missingFile in notIncludedFiles) {
 					Console.WriteLine("{0} not included!", missingFile);
 				}
+			}
 
+			var missingFiles = GetMissingFiles(FilterFiles(includedFiles, filePattern), existingFiles).ToList();
+			if (missingFiles.Any()) {
+				Console.WriteLine("Missing files found!");
+				foreach (var missingFile in missingFiles) {
+					Console.WriteLine("{0} are missing!", missingFile);
+				}
+			}
+
+			if (notIncludedFiles.Any() || missingFiles.Any()) {
 				return -1;
 			}
 
@@ -41,13 +51,16 @@ namespace VisualStudioMissingProjectFilesDetector {
 
 		private static IEnumerable<string> FilterFiles(IEnumerable<string> files, string filePattern) {
 			var regex = new Regex(filePattern, RegexOptions.Compiled);
-			return files.Where(file => regex.IsMatch(file)).ToList();
+			return files.Where(file => 
+				regex.IsMatch(file)
+			).ToList();
 		}
 
-		private static IEnumerable<string> GetExistingFiles(string projectFile) {
+		private static ISet<string> GetExistingFiles(string projectFile) {
 			var projectDirectory = Path.GetDirectoryName(projectFile);
-			return Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories)
-				.ToList();
+			var filePaths = Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories);
+
+			return new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
 		}
 
 		private static ISet<string> GetIncludedFiles(string projectFile) {
@@ -59,7 +72,12 @@ namespace VisualStudioMissingProjectFilesDetector {
 				.Cast<Match>()
 				.Where(match => match.Success)
 				.Select(match => match.Groups[1].Value)
-				.Select(fileName => Path.Combine(projectDirectory, fileName));
+				.Select(HttpUtility.UrlDecode)
+				.Select(HttpUtility.HtmlDecode)
+				.Select(fileName => 
+					Path.Combine(projectDirectory, fileName)
+					)
+				.Where(file => File.Exists(file) || !Directory.Exists(file));
 			
 			return new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
 		}
